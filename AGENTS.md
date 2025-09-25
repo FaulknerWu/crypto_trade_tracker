@@ -5,6 +5,7 @@
 - Project Goal: This is a self-service application for manually tracking and analyzing cryptocurrency contract trades.
 - Key Constraint: The application is for a `manual data entry only` workflow. Users add, edit, and delete their trade records by hand.
 - Out of Scope: There is `NO` functionality for connecting to exchange APIs to fetch trade data or execute orders. Do not implement or suggest any features related to API integration, data synchronization, or automated trading. The entire data lifecycle is managed manually by the user.
+- Lang: Always respond in Chinese-simplified
 
 ## Project Structure & Module Organization
 
@@ -37,4 +38,3 @@
 - Exercise asynchronous trade calculations by awaiting pumps and using fake timers where appropriate.
 - Target meaningful coverage, especially around trade analytics and any future API clients; log uncovered areas in the PR description.
 - Use golden tests for complex widgets when UI regressions are likely; store assets under `test/goldens/`.
-- When developing UI for feature testing or validation, prioritize functionality over aesthetics. The UI should be simple and usable, but there is no need to spend time on elaborate styling or visual polish for these test-focused interfaces.
