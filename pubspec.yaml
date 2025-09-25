@@ -12,6 +12,7 @@ dependencies:
   path: ^1.9.0
   sqflite_common_ffi: ^2.3.5
   sqflite_common_ffi_web: ^0.4.4
+  pluto_grid: ^8.0.0
 
 dev_dependencies:
   flutter_test:
