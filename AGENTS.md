@@ -5,7 +5,6 @@
 - Project Goal: This is a self-service application for manually tracking and analyzing cryptocurrency contract trades.
 - Key Constraint: The application is for a `manual data entry only` workflow. Users add, edit, and delete their trade records by hand.
 - Out of Scope: There is `NO` functionality for connecting to exchange APIs to fetch trade data or execute orders. Do not implement or suggest any features related to API integration, data synchronization, or automated trading. The entire data lifecycle is managed manually by the user.
-- Lang: Always respond in Chinese-simplified
 
 ## Project Structure & Module Organization
 
@@ -29,6 +28,7 @@
 - Use the Dart formatter (`dart format lib test`) to keep the default two-space indentation and line widths enforced.
 - Favor descriptive `UpperCamelCase` for classes/widgets, `lowerCamelCase` for members, and `snake_case.dart` filenames.
 - Extract stateful logic out of UI widgets into services/providers to keep `main.dart` lean.
+- Consolidate highly repetitive code blocks into reusable functions or methods to improve maintainability and reduce redundancy.
 - Leverage `const` constructors and `final` fields where possible to satisfy performance-focused lints.
 - Avoid "hacky" or un-idiomatic solutions, even for temporary feature testing. Strive for clean, readable, and maintainable code at all stages. Do not commit commented-out code blocks or temporary workarounds.
 

@@ -5,6 +5,7 @@ import '../models/exchange.dart';
 import '../models/trade.dart';
 import '../repositories/exchange_repository.dart';
 import '../repositories/trade_repository.dart';
+import '../utils/string_utils.dart';
 
 const _tradeTableColumnWidths = <double>[
   160, // 交易所
@@ -23,6 +24,115 @@ const _tradeTableColumnWidths = <double>[
   200, // 备注
 ];
 
+enum _TradeColumnType { text, number }
+
+enum _TradeColumnRendererType { none, pnl, notes }
+
+class _TradeColumnConfig {
+  const _TradeColumnConfig.text({
+    required this.title,
+    required this.field,
+    required this.widthIndex,
+    this.textAlign = PlutoColumnTextAlign.start,
+    this.minWidth,
+    this.rendererType = _TradeColumnRendererType.none,
+  }) : type = _TradeColumnType.text,
+       format = null;
+
+  const _TradeColumnConfig.number({
+    required this.title,
+    required this.field,
+    required this.widthIndex,
+    required this.format,
+    this.rendererType = _TradeColumnRendererType.none,
+  }) : type = _TradeColumnType.number,
+       textAlign = PlutoColumnTextAlign.right,
+       minWidth = null;
+
+  final _TradeColumnType type;
+  final String title;
+  final String field;
+  final int widthIndex;
+  final String? format;
+  final PlutoColumnTextAlign textAlign;
+  final double? minWidth;
+  final _TradeColumnRendererType rendererType;
+}
+
+const _tradeColumnConfigs = <_TradeColumnConfig>[
+  _TradeColumnConfig.text(
+    title: '交易所',
+    field: 'exchange',
+    widthIndex: 0,
+    minWidth: 120,
+  ),
+  _TradeColumnConfig.text(title: '交易对', field: 'symbol', widthIndex: 1),
+  _TradeColumnConfig.text(
+    title: '方向',
+    field: 'direction',
+    widthIndex: 2,
+    textAlign: PlutoColumnTextAlign.center,
+  ),
+  _TradeColumnConfig.text(
+    title: '角色',
+    field: 'role',
+    widthIndex: 3,
+    textAlign: PlutoColumnTextAlign.center,
+  ),
+  _TradeColumnConfig.number(
+    title: '数量',
+    field: 'quantity',
+    widthIndex: 4,
+    format: '#,##0.00',
+  ),
+  _TradeColumnConfig.number(
+    title: '杠杆',
+    field: 'leverage',
+    widthIndex: 5,
+    format: '#,##0',
+  ),
+  _TradeColumnConfig.number(
+    title: '开仓价',
+    field: 'openPrice',
+    widthIndex: 6,
+    format: '#,##0.00',
+  ),
+  _TradeColumnConfig.number(
+    title: '平仓价',
+    field: 'closePrice',
+    widthIndex: 7,
+    format: '#,##0.00',
+  ),
+  _TradeColumnConfig.number(
+    title: '起始保证金',
+    field: 'initialMargin',
+    widthIndex: 8,
+    format: '#,##0.00',
+  ),
+  _TradeColumnConfig.number(
+    title: '手续费',
+    field: 'fee',
+    widthIndex: 9,
+    format: '#,##0.00',
+  ),
+  _TradeColumnConfig.number(
+    title: '净盈亏',
+    field: 'pnl',
+    widthIndex: 10,
+    format: '#,##0.00',
+    rendererType: _TradeColumnRendererType.pnl,
+  ),
+  _TradeColumnConfig.text(title: '开仓时间', field: 'openTime', widthIndex: 11),
+  _TradeColumnConfig.text(title: '平仓时间', field: 'closeTime', widthIndex: 12),
+  _TradeColumnConfig.text(
+    title: '备注',
+    field: 'notes',
+    widthIndex: 13,
+    minWidth: 160,
+    rendererType: _TradeColumnRendererType.notes,
+  ),
+];
+
 class _NavigationGroupConfig {
   const _NavigationGroupConfig({required this.title, required this.items});
 
@@ -31,22 +141,13 @@ class _NavigationGroupConfig {
 }
 
 const _navigationGroups = <_NavigationGroupConfig>[
-  _NavigationGroupConfig(
-    title: '账户',
-    items: ['仪表盘', '交易账户', '资金流动'],
-  ),
+  _NavigationGroupConfig(title: '账户', items: ['仪表盘', '交易账户', '资金流动']),
   _NavigationGroupConfig(
     title: '报表',
     items: ['资产净值', '仓位分析', '收益报表', '交易记录', '图表面板'],
   ),
-  _NavigationGroupConfig(
-    title: '类别',
-    items: ['标签管理', '策略类型'],
-  ),
-  _NavigationGroupConfig(
-    title: '常规数据',
-    items: ['货币', '设置'],
-  ),
+  _NavigationGroupConfig(title: '类别', items: ['标签管理', '策略类型']),
+  _NavigationGroupConfig(title: '常规数据', items: ['货币', '设置']),
 ];
 
 const _formFieldGap = SizedBox(height: 12);
@@ -131,7 +232,9 @@ class _HomePageState extends State<HomePage> {
         children: [
           Text(
             '合约交易管理台',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(width: 32),
           for (final item in menuItems)
@@ -139,7 +242,9 @@ class _HomePageState extends State<HomePage> {
               padding: const EdgeInsets.only(right: 16),
               child: Text(
                 item,
-                style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey.shade700,
+                ),
               ),
             ),
           const Spacer(),
@@ -193,8 +298,13 @@ class _HomePageState extends State<HomePage> {
           _buildNavigationHeader(theme),
           for (final group in _navigationGroups) ...[
             _buildNavigationGroupTitle(theme, group.title),
-            ...group.items.map((item) => _buildNavigationItem(theme, item,
-                isActive: item == activeItem)),
+            ...group.items.map(
+              (item) => _buildNavigationItem(
+                theme,
+                item,
+                isActive: item == activeItem,
+              ),
+            ),
           ],
         ],
       ),
@@ -261,8 +371,7 @@ class _HomePageState extends State<HomePage> {
                     color: isActive
                         ? theme.colorScheme.primary
                         : Colors.grey.shade700,
-                    fontWeight:
-                        isActive ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ],
@@ -286,11 +395,9 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 8),
             Text(
               _errorMessage!,
-              style: Theme
-                  .of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: Colors.red),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.red),
             ),
             const SizedBox(height: 12),
             ElevatedButton.icon(
@@ -333,7 +440,9 @@ class _HomePageState extends State<HomePage> {
         children: [
           Text(
             '交易记录',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 12),
           LayoutBuilder(
@@ -395,22 +504,14 @@ class _HomePageState extends State<HomePage> {
                     spacing: 12,
                     runSpacing: 12,
                     crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      viewSelector,
-                      accountSelector,
-                      createButton,
-                    ],
+                    children: [viewSelector, accountSelector, createButton],
                   ),
                   const SizedBox(height: 16),
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
                     crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      viewOptions,
-                      pnlText,
-                      searchField,
-                    ],
+                    children: [viewOptions, pnlText, searchField],
                   ),
                 ],
               );
@@ -435,7 +536,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildAccountSelector() {
-    final accountNames = ['全部账户', ..._exchanges.map((exchange) => exchange.name)];
+    final accountNames = [
+      '全部账户',
+      ..._exchanges.map((exchange) => exchange.name),
+    ];
     return _buildDropdown(
       label: '账户',
       value: _selectedAccount,
@@ -476,9 +580,9 @@ class _HomePageState extends State<HomePage> {
           child: Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         Container(
@@ -511,9 +615,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildTradesSection() {
     final trades = _showOnlyOpenTrades
-        ? _trades
-            .where((trade) => trade.closeTimestamp.trim().isEmpty)
-            .toList()
+        ? _trades.where((trade) => trade.closeTimestamp.trim().isEmpty).toList()
         : _trades;
 
     if (trades.isEmpty) {
@@ -589,73 +691,42 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<PlutoColumn> _buildTradeColumns() {
-    return [
-      _buildTextColumn(
-        title: '交易所',
-        field: 'exchange',
-        widthIndex: 0,
-        textAlign: PlutoColumnTextAlign.start,
-        minWidth: 120,
-      ),
-      _buildTextColumn(
-        title: '交易对',
-        field: 'symbol',
-        widthIndex: 1,
-      ),
-      _buildTextColumn(
-        title: '方向',
-        field: 'direction',
-        widthIndex: 2,
-        textAlign: PlutoColumnTextAlign.center,
-      ),
-      _buildTextColumn(
-        title: '角色',
-        field: 'role',
-        widthIndex: 3,
-        textAlign: PlutoColumnTextAlign.center,
-      ),
-      _buildNumberColumn(
-        title: '数量',
-        field: 'quantity',
-        widthIndex: 4,
-        format: '#,##0.00',
-      ),
-      _buildNumberColumn(
-        title: '杠杆',
-        field: 'leverage',
-        widthIndex: 5,
-        format: '#,##0',
-      ),
-      _buildNumberColumn(
-        title: '开仓价',
-        field: 'openPrice',
-        widthIndex: 6,
-        format: '#,##0.00',
-      ),
-      _buildNumberColumn(
-        title: '平仓价',
-        field: 'closePrice',
-        widthIndex: 7,
-        format: '#,##0.00',
-      ),
-      _buildNumberColumn(
-        title: '起始保证金',
-        field: 'initialMargin',
-        widthIndex: 8,
-        format: '#,##0.00',
-      ),
-      _buildNumberColumn(
-        title: '手续费',
-        field: 'fee',
-        widthIndex: 9,
-        format: '#,##0.00',
-      ),
-      _buildNumberColumn(
-        title: '净盈亏',
-        field: 'pnl',
-        widthIndex: 10,
-        format: '#,##0.00',
-        renderer: (context) {
+    return _tradeColumnConfigs.map(_buildTradeColumn).toList();
+  }
+
+  PlutoColumn _buildTradeColumn(_TradeColumnConfig config) {
+    final renderer = _columnRendererFor(config.rendererType);
+    switch (config.type) {
+      case _TradeColumnType.text:
+        return _buildTextColumn(
+          title: config.title,
+          field: config.field,
+          widthIndex: config.widthIndex,
+          textAlign: config.textAlign,
+          minWidth: config.minWidth ?? 0,
+          renderer: renderer,
+        );
+      case _TradeColumnType.number:
+        return _buildNumberColumn(
+          title: config.title,
+          field: config.field,
+          widthIndex: config.widthIndex,
+          format: config.format!,
+          textAlign: config.textAlign,
+          minWidth: config.minWidth ?? 0,
+          renderer: renderer,
+        );
+    }
+  }
+
+  PlutoColumnRenderer? _columnRendererFor(
+    _TradeColumnRendererType rendererType,
+  ) {
+    switch (rendererType) {
+      case _TradeColumnRendererType.none:
+        return null;
+      case _TradeColumnRendererType.pnl:
+        return (context) {
           final value = context.cell.value is num
               ? (context.cell.value as num).toDouble()
               : double.tryParse('${context.cell.value}') ?? 0;
@@ -672,24 +743,9 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           );
-        },
-      ),
-      _buildTextColumn(
-        title: '开仓时间',
-        field: 'openTime',
-        widthIndex: 11,
-      ),
-      _buildTextColumn(
-        title: '平仓时间',
-        field: 'closeTime',
-        widthIndex: 12,
-      ),
-      _buildTextColumn(
-        title: '备注',
-        field: 'notes',
-        widthIndex: 13,
-      minWidth: 160,
-      renderer: (context) {
+        };
+      case _TradeColumnRendererType.notes:
+        return (context) {
           final raw = context.cell.value?.toString().trim();
           final display = (raw == null || raw.isEmpty) ? '-' : raw;
           return Align(
@@ -701,9 +757,8 @@ class _HomePageState extends State<HomePage> {
               style: const TextStyle(fontSize: 12),
             ),
           );
-        },
-      ),
-    ];
+        };
+    }
   }
 
   PlutoColumn _buildTextColumn({
@@ -730,6 +785,8 @@ class _HomePageState extends State<HomePage> {
     required String field,
     required int widthIndex,
     required String format,
+    PlutoColumnTextAlign textAlign = PlutoColumnTextAlign.right,
+    double minWidth = 0,
     PlutoColumnRenderer? renderer,
   }) {
     return _buildColumn(
@@ -737,7 +794,8 @@ class _HomePageState extends State<HomePage> {
       field: field,
       type: PlutoColumnType.number(format: format),
       width: _columnWidth(widthIndex),
-      textAlign: PlutoColumnTextAlign.right,
+      textAlign: textAlign,
+      minWidth: minWidth,
       renderer: renderer,
     );
   }
@@ -812,11 +870,21 @@ class _HomePageState extends State<HomePage> {
 
   String _twoDigits(int value) => value.toString().padLeft(2, '0');
 
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red.shade600 : null,
+      ),
+    );
+  }
+
   Future<void> _openCreateTradeDialog() async {
     if (_exchanges.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('请先添加交易所信息。')));
+      _showSnackBar('请先添加交易所信息。');
       return;
     }
 
@@ -830,19 +898,9 @@ class _HomePageState extends State<HomePage> {
     try {
       await _tradeRepository.createTrade(input);
       await _loadData();
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('交易记录已保存。')));
+      _showSnackBar('交易记录已保存。');
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('保存失败：$error')));
+      _showSnackBar('保存失败：$error', isError: true);
     }
   }
 }
@@ -939,10 +997,7 @@ class _TradeFormDialogState extends State<TradeFormDialog> {
                     label: '方向',
                     value: _direction,
                     items: const <DropdownMenuItem<String>>[
-                      DropdownMenuItem(
-                        value: 'LONG',
-                        child: Text('多头 (LONG)'),
-                      ),
+                      DropdownMenuItem(value: 'LONG', child: Text('多头 (LONG)')),
                       DropdownMenuItem(
                         value: 'SHORT',
                         child: Text('空头 (SHORT)'),
@@ -1134,27 +1189,27 @@ class _TradeFormDialogState extends State<TradeFormDialog> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    final quantity = double.parse(_quantityController.text.trim());
-    final leverage = int.parse(_leverageController.text.trim());
-    final openPrice = double.parse(_openPriceController.text.trim());
-    final closePrice = double.parse(_closePriceController.text.trim());
+    final quantity = double.parse(_valueOf(_quantityController));
+    final leverage = int.parse(_valueOf(_leverageController));
+    final openPrice = double.parse(_valueOf(_openPriceController));
+    final closePrice = double.parse(_valueOf(_closePriceController));
 
     Navigator.of(context).pop(
       TradeInput(
         exchangeId: _selectedExchangeId,
-        symbol: _symbolController.text.trim(),
+        symbol: _valueOf(_symbolController),
         direction: _direction,
         role: _role,
         quantity: quantity,
         leverage: leverage,
         openPrice: openPrice,
         closePrice: closePrice,
-        openTimestamp: _openTimestampController.text.trim(),
-        closeTimestamp: _closeTimestampController.text.trim(),
-        notes: _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
+        openTimestamp: _valueOf(_openTimestampController),
+        closeTimestamp: _valueOf(_closeTimestampController),
+        notes: trimToNull(_notesController.text),
       ),
     );
   }
+
+  String _valueOf(TextEditingController controller) => controller.text.trim();
 }

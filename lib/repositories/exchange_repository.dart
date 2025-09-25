@@ -9,8 +9,7 @@ class ExchangeRepository {
 
   Future<int> createExchange(Exchange exchange) async {
     final db = await _databaseService.database;
-    final data = exchange.toMap()..remove('id');
-    return db.insert('exchanges', data);
+    return db.insert('exchanges', _exchangeDataWithoutId(exchange));
   }
 
   Future<List<Exchange>> getAllExchanges() async {
@@ -38,7 +37,7 @@ class ExchangeRepository {
       throw ArgumentError('Exchange id cannot be null for update');
     }
     final db = await _databaseService.database;
-    final data = exchange.toMap()..remove('id');
+    final data = _exchangeDataWithoutId(exchange);
     return db.update(
       'exchanges',
       data,
@@ -50,5 +49,11 @@ class ExchangeRepository {
   Future<int> deleteExchange(int id) async {
     final db = await _databaseService.database;
     return db.delete('exchanges', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Map<String, Object?> _exchangeDataWithoutId(Exchange exchange) {
+    final data = exchange.toMap();
+    data.remove('id');
+    return data;
   }
 }

@@ -1,6 +1,7 @@
 import '../models/exchange.dart';
 import '../models/trade.dart';
 import '../services/database_service.dart';
+import '../utils/string_utils.dart';
 import 'exchange_repository.dart';
 
 class TradeRepository {
@@ -17,16 +18,12 @@ class TradeRepository {
 
   Future<int> createTrade(TradeInput input) async {
     final trade = await _buildTradeFromInput(input);
-    final db = await _databaseService.database;
-    final data = trade.toMap()..remove('id');
-    return db.insert('trades', data);
+    return _insertTrade(trade);
   }
 
   Future<int> updateTrade(int id, TradeInput input) async {
     final trade = await _buildTradeFromInput(input, id: id);
-    final db = await _databaseService.database;
-    final data = trade.toMap()..remove('id');
-    return db.update('trades', data, where: 'id = ?', whereArgs: [id]);
+    return _updateTrade(trade);
   }
 
   Future<int> deleteTrade(int id) async {
@@ -78,28 +75,31 @@ class TradeRepository {
   }
 
   Future<Trade> _buildTradeFromInput(TradeInput input, {int? id}) async {
-    if (input.leverage <= 0) {
-      throw ArgumentError('Leverage must be greater than zero');
-    }
-    if (input.quantity <= 0) {
-      throw ArgumentError('Quantity must be greater than zero');
-    }
-    if (input.openPrice <= 0 || input.closePrice <= 0) {
-      throw ArgumentError('Prices must be greater than zero');
-    }
+    _ensurePositive(input.leverage, fieldName: 'Leverage');
+    _ensurePositive(input.quantity, fieldName: 'Quantity');
+    _ensurePositive(
+      input.openPrice,
+      fieldName: 'Open price',
+      errorMessage: 'Prices must be greater than zero',
+    );
+    _ensurePositive(
+      input.closePrice,
+      fieldName: 'Close price',
+      errorMessage: 'Prices must be greater than zero',
+    );
 
     final exchange = await _requireExchange(input.exchangeId);
-    final direction = input.direction.trim().toUpperCase();
-    const allowedDirections = {'LONG', 'SHORT'};
-    if (!allowedDirections.contains(direction)) {
-      throw ArgumentError('Direction must be either LONG or SHORT');
-    }
+    final direction = _normalizeChoice(
+      raw: input.direction,
+      allowed: const {'LONG', 'SHORT'},
+      errorMessage: 'Direction must be either LONG or SHORT',
+    );
 
-    final role = input.role.trim().toUpperCase();
-    const allowedRoles = {'MAKER', 'TAKER'};
-    if (!allowedRoles.contains(role)) {
-      throw ArgumentError('Role must be either MAKER or TAKER');
-    }
+    final role = _normalizeChoice(
+      raw: input.role,
+      allowed: const {'MAKER', 'TAKER'},
+      errorMessage: 'Role must be either MAKER or TAKER',
+    );
 
     final initialMargin = (input.quantity * input.openPrice) / input.leverage;
     final feeRate = role == 'MAKER'
@@ -120,7 +120,6 @@ class TradeRepository {
       input.closeTimestamp,
       fieldName: 'closeTimestamp',
     );
-    final trimmedNotes = input.notes?.trim();
     return Trade(
       id: id,
       exchangeId: input.exchangeId,
@@ -136,9 +135,7 @@ class TradeRepository {
       pnl: pnl,
       openTimestamp: openTimestamp,
       closeTimestamp: closeTimestamp,
-      notes: (trimmedNotes == null || trimmedNotes.isEmpty)
-          ? null
-          : trimmedNotes,
+      notes: trimToNull(input.notes),
     );
   }
 
@@ -163,5 +160,54 @@ class TradeRepository {
         '$fieldName must be a valid ISO 8601 date or date-time string',
       );
     }
+  }
+
+  Future<int> _insertTrade(Trade trade) async {
+    final db = await _databaseService.database;
+    return db.insert('trades', _tradeDataWithoutId(trade));
+  }
+
+  Future<int> _updateTrade(Trade trade) async {
+    final tradeId = trade.id;
+    if (tradeId == null) {
+      throw ArgumentError('Trade id cannot be null for update');
+    }
+    final db = await _databaseService.database;
+    return db.update(
+      'trades',
+      _tradeDataWithoutId(trade),
+      where: 'id = ?',
+      whereArgs: [tradeId],
+    );
+  }
+
+  Map<String, Object?> _tradeDataWithoutId(Trade trade) {
+    final data = trade.toMap();
+    data.remove('id');
+    return data;
+  }
+
+  void _ensurePositive(
+    num value, {
+    required String fieldName,
+    String? errorMessage,
+  }) {
+    if (value <= 0) {
+      throw ArgumentError(
+        errorMessage ?? '$fieldName must be greater than zero',
+      );
+    }
+  }
+
+  String _normalizeChoice({
+    required String raw,
+    required Set<String> allowed,
+    required String errorMessage,
+  }) {
+    final value = raw.trim().toUpperCase();
+    if (!allowed.contains(value)) {
+      throw ArgumentError(errorMessage);
+    }
+    return value;
   }
 }
