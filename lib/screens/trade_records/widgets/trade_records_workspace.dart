@@ -1,11 +1,13 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../../../models/exchange.dart';
 import '../../../models/trade.dart';
 import 'trade_table.dart';
 
-class HomeWorkspace extends StatelessWidget {
-  const HomeWorkspace({
+class TradeRecordsWorkspace extends StatelessWidget {
+  const TradeRecordsWorkspace({
     super.key,
     required this.isLoading,
     required this.errorMessage,
@@ -49,7 +51,7 @@ class HomeWorkspace extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _WorkspaceHeader(
+        _TradeRecordsHeader(
           totalPnl: totalPnl,
           selectedView: selectedView,
           onSelectedViewChanged: onSelectedViewChanged,
@@ -96,8 +98,8 @@ class HomeWorkspace extends StatelessWidget {
   }
 }
 
-class _WorkspaceHeader extends StatelessWidget {
-  const _WorkspaceHeader({
+class _TradeRecordsHeader extends StatelessWidget {
+  const _TradeRecordsHeader({
     required this.totalPnl,
     required this.selectedView,
     required this.onSelectedViewChanged,
