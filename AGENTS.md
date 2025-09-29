@@ -15,7 +15,7 @@
 ## Build, Test, and Development Commands
 - `flutter pub get` syncs dependencies after editing `pubspec.yaml`.
 - `dart format lib test` and `flutter analyze` must pass before commits.
-- `flutter run -d chrome` is the quickest manual smoke test.
+- `flutter run -d web-server` is the quickest manual smoke test.
 - `flutter test [--coverage]` runs unit and widget suites; keep them green before PRs.
 
 ## Coding Style & Naming Conventions
