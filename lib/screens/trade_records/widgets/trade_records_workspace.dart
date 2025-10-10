@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../../../models/exchange.dart';
@@ -13,10 +12,8 @@ class TradeRecordsWorkspace extends StatelessWidget {
     required this.totalPnl,
     required this.selectedView,
     required this.onSelectedViewChanged,
-    required this.selectedAccount,
-    required this.onSelectedAccountChanged,
-    required this.showOnlyOpenTrades,
-    required this.onShowOnlyOpenTradesChanged,
+    required this.selectedExchangeId,
+    required this.onSelectedExchangeChanged,
     required this.onCreateTrade,
     required this.onRefresh,
     required this.trades,
@@ -29,10 +26,8 @@ class TradeRecordsWorkspace extends StatelessWidget {
   final double totalPnl;
   final String selectedView;
   final ValueChanged<String> onSelectedViewChanged;
-  final String selectedAccount;
-  final ValueChanged<String> onSelectedAccountChanged;
-  final bool showOnlyOpenTrades;
-  final ValueChanged<bool> onShowOnlyOpenTradesChanged;
+  final int? selectedExchangeId;
+  final ValueChanged<int?> onSelectedExchangeChanged;
   final VoidCallback onCreateTrade;
   final VoidCallback onRefresh;
   final List<Trade> trades;
@@ -47,6 +42,16 @@ class TradeRecordsWorkspace extends StatelessWidget {
     if (errorMessage != null) {
       return _ErrorView(message: errorMessage!, onRetry: onRefresh);
     }
+    final filteredTrades = selectedExchangeId == null
+        ? trades
+        : trades
+              .where((trade) => trade.exchangeId == selectedExchangeId)
+              .toList();
+    final isCompactView = selectedView == _TradeRecordsHeader.views.last;
+    final tableKey = ValueKey(
+      '${selectedExchangeId ?? 'all'}-${filteredTrades.map(_tradeIdentifier).join(',')}',
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -54,13 +59,11 @@ class TradeRecordsWorkspace extends StatelessWidget {
           totalPnl: totalPnl,
           selectedView: selectedView,
           onSelectedViewChanged: onSelectedViewChanged,
-          selectedAccount: selectedAccount,
-          onSelectedAccountChanged: onSelectedAccountChanged,
-          showOnlyOpenTrades: showOnlyOpenTrades,
-          onShowOnlyOpenTradesChanged: onShowOnlyOpenTradesChanged,
+          selectedExchangeId: selectedExchangeId,
+          onSelectedExchangeChanged: onSelectedExchangeChanged,
           onCreateTrade: onCreateTrade,
           isCreateDisabled: isLoading,
-          accountNames: _buildAccountNames(),
+          exchanges: exchanges,
         ),
         Expanded(
           child: Padding(
@@ -71,18 +74,22 @@ class TradeRecordsWorkspace extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.grey.shade300),
               ),
-              child: trades.isEmpty
+              child: filteredTrades.isEmpty
                   ? Center(
                       child: Text(
-                        '尚未记录任何交易。点击上方“新增交易”开始记录。',
+                        selectedExchangeId == null
+                            ? '尚未记录任何交易。点击上方“新增交易”开始记录。'
+                            : '该交易所暂无交易记录。',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     )
                   : ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: TradeTable(
-                        trades: trades,
+                        key: tableKey,
+                        trades: filteredTrades,
                         exchangeById: exchangeById,
+                        isCompactView: isCompactView,
                       ),
                     ),
             ),
@@ -91,10 +98,6 @@ class TradeRecordsWorkspace extends StatelessWidget {
       ],
     );
   }
-
-  List<String> _buildAccountNames() {
-    return ['全部账户', ...exchanges.map((exchange) => exchange.name)];
-  }
 }
 
 class _TradeRecordsHeader extends StatelessWidget {
@@ -102,134 +105,131 @@ class _TradeRecordsHeader extends StatelessWidget {
     required this.totalPnl,
     required this.selectedView,
     required this.onSelectedViewChanged,
-    required this.selectedAccount,
-    required this.onSelectedAccountChanged,
-    required this.showOnlyOpenTrades,
-    required this.onShowOnlyOpenTradesChanged,
+    required this.selectedExchangeId,
+    required this.onSelectedExchangeChanged,
     required this.onCreateTrade,
     required this.isCreateDisabled,
-    required this.accountNames,
+    required this.exchanges,
   });
 
   final double totalPnl;
   final String selectedView;
   final ValueChanged<String> onSelectedViewChanged;
-  final String selectedAccount;
-  final ValueChanged<String> onSelectedAccountChanged;
-  final bool showOnlyOpenTrades;
-  final ValueChanged<bool> onShowOnlyOpenTradesChanged;
+  final int? selectedExchangeId;
+  final ValueChanged<int?> onSelectedExchangeChanged;
   final VoidCallback onCreateTrade;
   final bool isCreateDisabled;
-  final List<String> accountNames;
+  final List<Exchange> exchanges;
 
-  static const _views = ['标准视图', '紧凑视图'];
+  static const views = ['标准视图', '紧凑视图'];
+  static const double _controlHeight = 40;
+  static const double _controlFontSize = 13;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accountOptions = _buildAccountOptions();
+    final selectedAccountOption = accountOptions.firstWhere(
+      (option) => option.id == selectedExchangeId,
+      orElse: () => accountOptions.first,
+    );
+
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '交易记录',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const compactBreakpoint = 920.0;
-              final isCompact = constraints.maxWidth < compactBreakpoint;
-
-              final viewSelector = _buildDropdown(
-                context,
-                label: '视图',
-                value: selectedView,
-                options: _views,
-                onChanged: onSelectedViewChanged,
-              );
-              final accountSelector = _buildDropdown(
-                context,
-                label: '账户',
-                value: selectedAccount,
-                options: accountNames,
-                onChanged: onSelectedAccountChanged,
-              );
-              final createButton = FilledButton.icon(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '交易记录',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '净盈亏：${_formatCurrency(totalPnl)}',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        color: totalPnl >= 0 ? Colors.green : Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              FilledButton.icon(
                 onPressed: isCreateDisabled ? null : onCreateTrade,
                 icon: const Icon(Icons.add),
                 label: const Text('新增交易'),
-              );
-              final viewOptions = Row(
-                mainAxisSize: MainAxisSize.min,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(120, _controlHeight),
+                  textStyle: const TextStyle(fontSize: _controlFontSize),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const compactBreakpoint = 840.0;
+              final isCompact = constraints.maxWidth < compactBreakpoint;
+
+              final filterControls = Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Checkbox(
-                    value: showOnlyOpenTrades,
-                    onChanged: (checked) =>
-                        onShowOnlyOpenTradesChanged(checked ?? false),
+                  _buildAccountPicker(
+                    context,
+                    icon: Icons.account_balance_wallet_outlined,
+                    selected: selectedAccountOption,
+                    options: accountOptions,
+                    onSelected: onSelectedExchangeChanged,
                   ),
-                  const Text('仅显示未平仓'),
+                  _buildPickerPill(
+                    context,
+                    icon: Icons.view_week_outlined,
+                    label: selectedView,
+                    isActive: selectedView != views.first,
+                    options: views,
+                    onSelected: onSelectedViewChanged,
+                  ),
                 ],
               );
-              final pnlText = Text(
-                '净盈亏: ${_formatCurrency(totalPnl)}',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                  color: totalPnl >= 0 ? Colors.green : Colors.red,
-                ),
-              );
+
               final searchField = SizedBox(
-                width: isCompact ? constraints.maxWidth : 220,
-                child: TextField(
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: '搜索',
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
+                width: isCompact ? double.infinity : 280,
+                child: SizedBox(
+                  height: _controlHeight,
+                  child: _buildSearchField(context),
                 ),
               );
 
-              if (!isCompact) {
-                return Row(
+              if (isCompact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    viewSelector,
-                    const SizedBox(width: 16),
-                    accountSelector,
-                    const SizedBox(width: 16),
-                    createButton,
-                    const Spacer(),
-                    viewOptions,
-                    const SizedBox(width: 12),
-                    pnlText,
-                    const SizedBox(width: 16),
+                    filterControls,
+                    const SizedBox(height: 16),
                     searchField,
                   ],
                 );
               }
 
-              return Column(
+              return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [viewSelector, accountSelector, createButton],
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [viewOptions, pnlText, searchField],
-                  ),
+                  Expanded(child: filterControls),
+                  const SizedBox(width: 16),
+                  searchField,
                 ],
               );
             },
@@ -239,55 +239,162 @@ class _TradeRecordsHeader extends StatelessWidget {
     );
   }
 
-  Widget _buildDropdown(
+  Widget _buildAccountPicker(
     BuildContext context, {
-    required String label,
-    required String value,
-    required List<String> options,
-    required ValueChanged<String> onChanged,
+    required IconData icon,
+    required _AccountOption selected,
+    required List<_AccountOption> options,
+    required ValueChanged<int?> onSelected,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 4, left: 4),
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+    final theme = Theme.of(context);
+    final isActive = selected.id != null;
+    final borderColor = isActive
+        ? theme.colorScheme.primary
+        : Colors.grey.shade300;
+    final foregroundColor = isActive
+        ? theme.colorScheme.primary
+        : Colors.grey.shade700;
+    final backgroundColor = isActive
+        ? theme.colorScheme.primary.withValues(alpha: 0.12)
+        : Colors.grey.shade100;
+
+    return SizedBox(
+      height: _controlHeight,
+      child: PopupMenuButton<_AccountOption>(
+        position: PopupMenuPosition.under,
+        onSelected: (option) => onSelected(option.id),
+        itemBuilder: (context) => options
+            .map(
+              (option) => PopupMenuItem<_AccountOption>(
+                value: option,
+                child: Text(
+                  option.label,
+                  style: const TextStyle(fontSize: _controlFontSize),
+                ),
+              ),
+            )
+            .toList(),
+        child: Container(
+          height: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade400),
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.white,
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: borderColor),
           ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: value,
-              icon: const Icon(Icons.expand_more, size: 18),
-              isDense: true,
-              items: options
-                  .map(
-                    (option) => DropdownMenuItem<String>(
-                      value: option,
-                      child: Text(option),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (selected) {
-                if (selected != null) {
-                  onChanged(selected);
-                }
-              },
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: foregroundColor),
+              const SizedBox(width: 6),
+              Text(
+                selected.label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: _controlFontSize,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.expand_more, size: 18, color: foregroundColor),
+            ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildPickerPill(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required List<String> options,
+    required ValueChanged<String> onSelected,
+    required bool isActive,
+  }) {
+    final theme = Theme.of(context);
+    final borderColor = isActive
+        ? theme.colorScheme.primary
+        : Colors.grey.shade300;
+    final foregroundColor = isActive
+        ? theme.colorScheme.primary
+        : Colors.grey.shade700;
+    final backgroundColor = isActive
+        ? theme.colorScheme.primary.withValues(alpha: 0.12)
+        : Colors.grey.shade100;
+
+    return SizedBox(
+      height: _controlHeight,
+      child: PopupMenuButton<String>(
+        position: PopupMenuPosition.under,
+        onSelected: onSelected,
+        itemBuilder: (context) => options
+            .map(
+              (option) => PopupMenuItem<String>(
+                value: option,
+                child: Text(
+                  option,
+                  style: const TextStyle(fontSize: _controlFontSize),
+                ),
+              ),
+            )
+            .toList(),
+        child: Container(
+          height: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: foregroundColor),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: _controlFontSize,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.expand_more, size: 18, color: foregroundColor),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<_AccountOption> _buildAccountOptions() {
+    final options = <_AccountOption>[
+      const _AccountOption(id: null, label: '全部账户'),
+    ];
+    for (final exchange in exchanges) {
+      if (exchange.id == null) {
+        continue;
+      }
+      options.add(_AccountOption(id: exchange.id!, label: exchange.name));
+    }
+    return options;
+  }
+
+  Widget _buildSearchField(BuildContext context) {
+    return TextField(
+      decoration: InputDecoration(
+        hintText: '搜索交易、交易所或备注',
+        prefixIcon: const Icon(Icons.search, size: 18),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 10,
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        isDense: true,
+      ),
+      style: const TextStyle(fontSize: _controlFontSize),
     );
   }
 
@@ -295,6 +402,21 @@ class _TradeRecordsHeader extends StatelessWidget {
     final prefix = value >= 0 ? '+' : '';
     return '$prefix${value.toStringAsFixed(2)}';
   }
+}
+
+class _AccountOption {
+  const _AccountOption({required this.id, required this.label});
+
+  final int? id;
+  final String label;
+
+  @override
+  String toString() => 'AccountOption(id: $id, label: $label)';
+}
+
+String _tradeIdentifier(Trade trade) {
+  return trade.id?.toString() ??
+      '${trade.exchangeId}-${trade.symbol}-${trade.openTimestamp}-${trade.closeTimestamp}';
 }
 
 class _ErrorView extends StatelessWidget {

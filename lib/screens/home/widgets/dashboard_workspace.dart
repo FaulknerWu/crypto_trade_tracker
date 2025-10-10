@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../../../models/exchange.dart';
@@ -12,6 +11,7 @@ class DashboardWorkspace extends StatelessWidget {
     required this.totalPnl,
     required this.trades,
     required this.exchanges,
+    required this.onCreateTrade,
   });
 
   final bool isLoading;
@@ -19,6 +19,7 @@ class DashboardWorkspace extends StatelessWidget {
   final double totalPnl;
   final List<Trade> trades;
   final List<Exchange> exchanges;
+  final VoidCallback onCreateTrade;
 
   @override
   Widget build(BuildContext context) {
@@ -38,11 +39,22 @@ class DashboardWorkspace extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '仪表盘',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '仪表盘',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: onCreateTrade,
+                  icon: const Icon(Icons.add),
+                  label: const Text('快速添加一笔交易信息'),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
             _MetricsGrid(metrics: metrics),
@@ -61,10 +73,8 @@ class _DashboardMetrics {
   _DashboardMetrics({
     required this.totalPnl,
     required this.realizedPnl,
-    required this.openPnl,
     required this.totalTrades,
     required this.closedTrades,
-    required this.openTrades,
     required this.totalExchanges,
     required this.recentTrades,
     required this.exchangeSummaries,
@@ -72,10 +82,8 @@ class _DashboardMetrics {
 
   final double totalPnl;
   final double realizedPnl;
-  final double openPnl;
   final int totalTrades;
   final int closedTrades;
-  final int openTrades;
   final int totalExchanges;
   final List<Trade> recentTrades;
   final List<_ExchangeSummary> exchangeSummaries;
@@ -89,15 +97,12 @@ class _DashboardMetrics {
     final closed = trimmedTrades
         .where((trade) => trade.closeTimestamp.trim().isNotEmpty)
         .toList();
-    final open = trimmedTrades
-        .where((trade) => trade.closeTimestamp.trim().isEmpty)
-        .toList();
     final realizedPnl = closed.fold<double>(0, (sum, trade) => sum + trade.pnl);
-    final openPnl = open.fold<double>(0, (sum, trade) => sum + trade.pnl);
     final sortedTrades = List<Trade>.of(trimmedTrades)
       ..sort(
-        (a, b) => _parseTimestamp(b.openTimestamp)
-            .compareTo(_parseTimestamp(a.openTimestamp)),
+        (a, b) => _parseTimestamp(
+          b.openTimestamp,
+        ).compareTo(_parseTimestamp(a.openTimestamp)),
       );
     final recentTrades = sortedTrades.take(5).toList();
 
@@ -132,10 +137,8 @@ class _DashboardMetrics {
     return _DashboardMetrics(
       totalPnl: totalPnl,
       realizedPnl: realizedPnl,
-      openPnl: openPnl,
       totalTrades: trimmedTrades.length,
       closedTrades: closed.length,
-      openTrades: open.length,
       totalExchanges: exchanges.length,
       recentTrades: recentTrades,
       exchangeSummaries: exchangeSummaries,
@@ -163,6 +166,8 @@ class _ExchangeSummary {
   }
 }
 
+const double _metricCardMinHeight = 188;
+
 class _MetricsGrid extends StatelessWidget {
   const _MetricsGrid({required this.metrics});
 
@@ -184,12 +189,6 @@ class _MetricsGrid extends StatelessWidget {
         icon: Icons.check_circle_outline,
       ),
       _MetricCard(
-        title: '未平仓',
-        value: metrics.openTrades.toString(),
-        subtitle: '浮动盈亏 ${_formatCurrency(metrics.openPnl)}',
-        icon: Icons.pending_actions,
-      ),
-      _MetricCard(
         title: '关联账户',
         value: metrics.totalExchanges.toString(),
         subtitle: '总交易 ${metrics.totalTrades}',
@@ -200,17 +199,32 @@ class _MetricsGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         const minWidth = 260.0;
-        final columnCount = (constraints.maxWidth / minWidth).floor().clamp(
-          1,
-          4,
-        );
+        const gap = 16.0;
+        final rawColumns = (constraints.maxWidth / minWidth).floor();
+        final columnCount = rawColumns.clamp(1, cards.length);
+
+        if (columnCount >= cards.length) {
+          return IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < cards.length; i++) ...[
+                  Expanded(child: cards[i]),
+                  if (i != cards.length - 1) const SizedBox(width: gap),
+                ],
+              ],
+            ),
+          );
+        }
+
         final isNarrow = constraints.maxWidth < minWidth * 1.2;
         final itemWidth = isNarrow
             ? constraints.maxWidth
-            : (constraints.maxWidth - (columnCount - 1) * 16) / columnCount;
+            : (constraints.maxWidth - (columnCount - 1) * gap) / columnCount;
+
         return Wrap(
-          spacing: 16,
-          runSpacing: 16,
+          spacing: gap,
+          runSpacing: gap,
           children: cards
               .map((card) => SizedBox(width: itemWidth, child: card))
               .toList(),
@@ -238,67 +252,72 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Icon(icon, color: theme.colorScheme.primary),
-                  ),
-                ),
-                const Spacer(),
-                if (trendColor != null)
-                  Icon(
-                    trendColor == Colors.green
-                        ? Icons.trending_up
-                        : Icons.trending_down,
-                    color: trendColor,
-                  ),
-              ],
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: _metricCardMinHeight),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-            const SizedBox(height: 16),
-            Text(title, style: theme.textTheme.labelLarge),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                fontFeatures: const [FontFeature.tabularFigures()],
-                color: trendColor ?? theme.colorScheme.onSurface,
-              ),
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                subtitle!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
           ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Row(
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Icon(icon, color: theme.colorScheme.primary),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (trendColor != null)
+                    Icon(
+                      trendColor == Colors.green
+                          ? Icons.trending_up
+                          : Icons.trending_down,
+                      color: trendColor,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(title, style: theme.textTheme.labelLarge),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: trendColor ?? theme.colorScheme.onSurface,
+                ),
+              ),
+              const Spacer(),
+              if (subtitle != null) ...[
+                Text(
+                  subtitle!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -336,12 +355,66 @@ class _RecentTradesCard extends StatelessWidget {
               )
             else
               Column(
-                children: trades
-                    .map((trade) => _RecentTradeRow(trade: trade))
-                    .toList(),
+                children: [
+                  const _RecentTradesHeaderRow(),
+                  const SizedBox(height: 12),
+                  for (var i = 0; i < trades.length; i++) ...[
+                    _RecentTradeRow(trade: trades[i]),
+                    if (i != trades.length - 1)
+                      Divider(height: 16, color: Colors.grey.shade200),
+                  ],
+                ],
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RecentTradesHeaderRow extends StatelessWidget {
+  const _RecentTradesHeaderRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final headerStyle = theme.textTheme.labelSmall?.copyWith(
+      color: Colors.grey.shade600,
+      fontWeight: FontWeight.w600,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          _TradeTableCell(flex: 3, child: Text('交易对', style: headerStyle)),
+          _TradeTableCell(flex: 1, child: Text('方向', style: headerStyle)),
+          _TradeTableCell(
+            flex: 1,
+            alignment: Alignment.centerRight,
+            child: Text('数量', style: headerStyle),
+          ),
+          _TradeTableCell(
+            flex: 1,
+            alignment: Alignment.centerRight,
+            child: Text('杠杆', style: headerStyle),
+          ),
+          _TradeTableCell(
+            flex: 2,
+            alignment: Alignment.centerRight,
+            child: Text('开仓时间', style: headerStyle),
+          ),
+          _TradeTableCell(
+            flex: 2,
+            alignment: Alignment.centerRight,
+            child: Text('平仓时间', style: headerStyle),
+          ),
+          _TradeTableCell(
+            flex: 1,
+            alignment: Alignment.centerRight,
+            child: Text('盈亏', style: headerStyle),
+          ),
+        ],
       ),
     );
   }
@@ -359,14 +432,20 @@ class _RecentTradeRow extends StatelessWidget {
     final pnlColor = trade.pnl >= 0 ? Colors.green : Colors.red;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          Expanded(
-            child: Text(trade.symbol, style: theme.textTheme.titleSmall),
+          _TradeTableCell(
+            flex: 3,
+            child: Text(
+              trade.symbol,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
-          SizedBox(
-            width: 80,
+          _TradeTableCell(
+            flex: 1,
             child: Text(
               isLong ? '做多' : '做空',
               style: theme.textTheme.bodySmall?.copyWith(
@@ -374,48 +453,72 @@ class _RecentTradeRow extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(
-            width: 100,
+          _TradeTableCell(
+            flex: 1,
+            alignment: Alignment.centerRight,
             child: Text(
               trade.quantity.toStringAsFixed(2),
-              textAlign: TextAlign.right,
               style: theme.textTheme.bodySmall,
             ),
           ),
-          SizedBox(
-            width: 100,
+          _TradeTableCell(
+            flex: 1,
+            alignment: Alignment.centerRight,
             child: Text(
               trade.leverage.toString(),
-              textAlign: TextAlign.right,
               style: theme.textTheme.bodySmall,
             ),
           ),
-          SizedBox(
-            width: 120,
+          _TradeTableCell(
+            flex: 2,
+            alignment: Alignment.centerRight,
             child: Text(
               trade.openTimestamp,
-              textAlign: TextAlign.right,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall,
             ),
           ),
-          SizedBox(
-            width: 120,
+          _TradeTableCell(
+            flex: 2,
+            alignment: Alignment.centerRight,
             child: Text(
-              trade.closeTimestamp.isEmpty ? '未平仓' : trade.closeTimestamp,
-              textAlign: TextAlign.right,
+              trade.closeTimestamp.isEmpty ? '--' : trade.closeTimestamp,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall,
             ),
           ),
-          SizedBox(
-            width: 100,
+          _TradeTableCell(
+            flex: 1,
+            alignment: Alignment.centerRight,
             child: Text(
               _formatCurrency(trade.pnl),
-              textAlign: TextAlign.right,
               style: theme.textTheme.bodySmall?.copyWith(color: pnlColor),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TradeTableCell extends StatelessWidget {
+  const _TradeTableCell({
+    required this.flex,
+    required this.child,
+    this.alignment = Alignment.centerLeft,
+  });
+
+  final int flex;
+  final Widget child;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      flex: flex,
+      child: Align(alignment: alignment, child: child),
     );
   }
 }

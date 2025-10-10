@@ -6,6 +6,7 @@ import '../../repositories/exchange_repository.dart';
 import '../../repositories/trade_repository.dart';
 import '../trade_records/widgets/trade_form_dialog.dart';
 import '../trade_records/widgets/trade_records_workspace.dart';
+import '../profit_report/widgets/profit_report_workspace.dart';
 import 'widgets/dashboard_workspace.dart';
 import 'widgets/home_view.dart';
 
@@ -26,8 +27,7 @@ class _HomePageState extends State<HomePage> {
   List<Trade> _trades = const [];
   double _totalPnl = 0;
   String _selectedView = '标准视图';
-  String _selectedAccount = '全部账户';
-  bool _showOnlyOpenTrades = false;
+  int? _selectedExchangeId;
   String _activeNavigationItem = '仪表盘';
 
   @override
@@ -54,6 +54,10 @@ class _HomePageState extends State<HomePage> {
         return;
       }
       setState(() {
+        final hasSelectedExchange =
+            _selectedExchangeId != null &&
+            !exchanges.any((exchange) => exchange.id == _selectedExchangeId);
+        _selectedExchangeId = hasSelectedExchange ? null : _selectedExchangeId;
         _exchanges = exchanges;
         _trades = trades;
         _totalPnl = totalPnl;
@@ -75,28 +79,6 @@ class _HomePageState extends State<HomePage> {
       if (exchange.id != null) exchange.id!: exchange,
   };
 
-  List<Trade> get _visibleTrades {
-    Iterable<Trade> trades = _trades;
-    if (_showOnlyOpenTrades) {
-      trades = trades.where((trade) => trade.closeTimestamp.trim().isEmpty);
-    }
-    if (_selectedAccount != '全部账户') {
-      int? selectedExchangeId;
-      for (final entry in _exchangeById.entries) {
-        if (entry.value.name == _selectedAccount) {
-          selectedExchangeId = entry.key;
-          break;
-        }
-      }
-      if (selectedExchangeId != null) {
-        trades = trades.where(
-          (trade) => trade.exchangeId == selectedExchangeId,
-        );
-      }
-    }
-    return trades.toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     final content = _buildActiveContent();
@@ -113,12 +95,8 @@ class _HomePageState extends State<HomePage> {
     setState(() => _selectedView = value);
   }
 
-  void _updateSelectedAccount(String value) {
-    setState(() => _selectedAccount = value);
-  }
-
-  void _updateShowOnlyOpenTrades(bool value) {
-    setState(() => _showOnlyOpenTrades = value);
+  void _updateSelectedExchange(int? exchangeId) {
+    setState(() => _selectedExchangeId = exchangeId);
   }
 
   void _handleNavigationChanged(String value) {
@@ -137,6 +115,7 @@ class _HomePageState extends State<HomePage> {
           totalPnl: _totalPnl,
           trades: _trades,
           exchanges: _exchanges,
+          onCreateTrade: _openCreateTradeDialog,
         );
       case '交易记录':
         return TradeRecordsWorkspace(
@@ -145,15 +124,22 @@ class _HomePageState extends State<HomePage> {
           totalPnl: _totalPnl,
           selectedView: _selectedView,
           onSelectedViewChanged: _updateSelectedView,
-          selectedAccount: _selectedAccount,
-          onSelectedAccountChanged: _updateSelectedAccount,
-          showOnlyOpenTrades: _showOnlyOpenTrades,
-          onShowOnlyOpenTradesChanged: _updateShowOnlyOpenTrades,
+          selectedExchangeId: _selectedExchangeId,
+          onSelectedExchangeChanged: _updateSelectedExchange,
           onCreateTrade: _openCreateTradeDialog,
           onRefresh: _loadData,
-          trades: _visibleTrades,
+          trades: _trades,
           exchanges: _exchanges,
           exchangeById: _exchangeById,
+        );
+      case '收益报表':
+        return ProfitReportWorkspace(
+          isLoading: _isLoading,
+          errorMessage: _errorMessage,
+          trades: _trades,
+          exchanges: _exchanges,
+          onRefresh: _loadData,
+          onCreateTrade: _openCreateTradeDialog,
         );
       default:
         return _ComingSoonPlaceholder(label: _activeNavigationItem);

@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:pluto_grid/pluto_grid.dart';
 
@@ -10,20 +9,22 @@ class TradeTable extends StatelessWidget {
     super.key,
     required this.trades,
     required this.exchangeById,
+    required this.isCompactView,
   });
 
   final List<Trade> trades;
   final Map<int, Exchange> exchangeById;
+  final bool isCompactView;
 
   @override
   Widget build(BuildContext context) {
-    final columns = _buildTradeColumns();
+    final columns = _buildTradeColumns(isCompactView);
     final rows = _buildTradeRows(trades);
     return PlutoGrid(
       columns: columns,
       rows: rows,
       configuration: PlutoGridConfiguration(
-        style: _buildStyle(),
+        style: _buildStyle(isCompactView),
         columnSize: const PlutoGridColumnSizeConfig(
           autoSizeMode: PlutoAutoSizeMode.none,
           resizeMode: PlutoResizeMode.normal,
@@ -37,15 +38,11 @@ class TradeTable extends StatelessWidget {
           scrollbarThicknessWhileDragging: 12,
         ),
       ),
-      onLoaded: (event) {
-        event.stateManager
-          ..setShowColumnFilter(true)
-          ..setKeepFocus(true);
-      },
+      onLoaded: (event) => event.stateManager.setKeepFocus(true),
     );
   }
 
-  PlutoGridStyleConfig _buildStyle() {
+  PlutoGridStyleConfig _buildStyle(bool isCompactView) {
     return PlutoGridStyleConfig(
       enableGridBorderShadow: false,
       gridBackgroundColor: Colors.white,
@@ -56,19 +53,19 @@ class TradeTable extends StatelessWidget {
       borderColor: Colors.grey.shade200,
       enableCellBorderHorizontal: true,
       enableCellBorderVertical: true,
-      rowHeight: 32,
-      columnHeight: 36,
-      columnFilterHeight: 34,
+      rowHeight: isCompactView ? 28 : 32,
+      columnHeight: isCompactView ? 32 : 36,
+      columnFilterHeight: 0,
       defaultCellPadding: const EdgeInsets.symmetric(horizontal: 8),
       defaultColumnTitlePadding: const EdgeInsets.symmetric(horizontal: 8),
       defaultColumnFilterPadding: const EdgeInsets.symmetric(horizontal: 8),
       columnTextStyle: TextStyle(
-        fontSize: 12,
+        fontSize: isCompactView ? 11 : 12,
         fontWeight: FontWeight.w600,
         color: Colors.grey.shade700,
       ),
       cellTextStyle: TextStyle(
-        fontSize: 12,
+        fontSize: isCompactView ? 11 : 12,
         color: Colors.grey.shade800,
         fontFeatures: const [FontFeature.tabularFigures()],
       ),
@@ -78,11 +75,14 @@ class TradeTable extends StatelessWidget {
     );
   }
 
-  List<PlutoColumn> _buildTradeColumns() {
-    return _tradeColumnConfigs.map(_buildTradeColumn).toList();
+  List<PlutoColumn> _buildTradeColumns(bool isCompactView) {
+    return _tradeColumnConfigs
+        .where((config) => !isCompactView || config.visibleInCompact)
+        .map((config) => _buildTradeColumn(config, isCompactView))
+        .toList();
   }
 
-  PlutoColumn _buildTradeColumn(_TradeColumnConfig config) {
+  PlutoColumn _buildTradeColumn(_TradeColumnConfig config, bool isCompactView) {
     final renderer = _columnRendererFor(config.rendererType);
     switch (config.type) {
       case _TradeColumnType.text:
@@ -90,6 +90,7 @@ class TradeTable extends StatelessWidget {
           title: config.title,
           field: config.field,
           widthIndex: config.widthIndex,
+          isCompactView: isCompactView,
           textAlign: config.textAlign,
           minWidth: config.minWidth ?? 0,
           renderer: renderer,
@@ -100,6 +101,7 @@ class TradeTable extends StatelessWidget {
           field: config.field,
           widthIndex: config.widthIndex,
           format: config.format!,
+          isCompactView: isCompactView,
           textAlign: config.textAlign,
           minWidth: config.minWidth ?? 0,
           renderer: renderer,
@@ -153,6 +155,7 @@ class TradeTable extends StatelessWidget {
     required String title,
     required String field,
     required int widthIndex,
+    required bool isCompactView,
     PlutoColumnTextAlign textAlign = PlutoColumnTextAlign.start,
     double minWidth = 0,
     PlutoColumnRenderer? renderer,
@@ -161,7 +164,7 @@ class TradeTable extends StatelessWidget {
       title: title,
       field: field,
       type: PlutoColumnType.text(),
-      width: _columnWidth(widthIndex),
+      width: _columnWidth(widthIndex, isCompactView),
       textAlign: textAlign,
       minWidth: minWidth,
       renderer: renderer,
@@ -173,6 +176,7 @@ class TradeTable extends StatelessWidget {
     required String field,
     required int widthIndex,
     required String format,
+    required bool isCompactView,
     PlutoColumnTextAlign textAlign = PlutoColumnTextAlign.right,
     double minWidth = 0,
     PlutoColumnRenderer? renderer,
@@ -181,7 +185,7 @@ class TradeTable extends StatelessWidget {
       title: title,
       field: field,
       type: PlutoColumnType.number(format: format),
-      width: _columnWidth(widthIndex),
+      width: _columnWidth(widthIndex, isCompactView),
       textAlign: textAlign,
       minWidth: minWidth,
       renderer: renderer,
@@ -236,7 +240,9 @@ class TradeTable extends StatelessWidget {
     }).toList();
   }
 
-  double _columnWidth(int index) => _tradeTableColumnWidths[index];
+  double _columnWidth(int index, bool isCompactView) => (isCompactView
+      ? _compactTradeTableColumnWidths
+      : _tradeTableColumnWidths)[index];
 
   String _formatNumber(double value) => value.toStringAsFixed(2);
 
@@ -269,6 +275,23 @@ const _tradeTableColumnWidths = <double>[
   200, // 备注
 ];
 
+const _compactTradeTableColumnWidths = <double>[
+  140,
+  110,
+  70,
+  90,
+  90,
+  70,
+  108,
+  108,
+  0,
+  0,
+  110,
+  140,
+  140,
+  0,
+];
+
 enum _TradeColumnType { text, number }
 
 enum _TradeColumnRendererType { none, pnl, notes }
@@ -281,6 +304,7 @@ class _TradeColumnConfig {
     this.textAlign = PlutoColumnTextAlign.start,
     this.minWidth,
     this.rendererType = _TradeColumnRendererType.none,
+    this.visibleInCompact = true,
   }) : type = _TradeColumnType.text,
        format = null;
 
@@ -290,6 +314,7 @@ class _TradeColumnConfig {
     required this.widthIndex,
     required this.format,
     this.rendererType = _TradeColumnRendererType.none,
+    this.visibleInCompact = true,
   }) : type = _TradeColumnType.number,
        textAlign = PlutoColumnTextAlign.right,
        minWidth = null;
@@ -302,6 +327,7 @@ class _TradeColumnConfig {
   final PlutoColumnTextAlign textAlign;
   final double? minWidth;
   final _TradeColumnRendererType rendererType;
+  final bool visibleInCompact;
 }
 
 const _tradeColumnConfigs = <_TradeColumnConfig>[
@@ -353,12 +379,14 @@ const _tradeColumnConfigs = <_TradeColumnConfig>[
     field: 'initialMargin',
     widthIndex: 8,
     format: '#,##0.00',
+    visibleInCompact: false,
   ),
   _TradeColumnConfig.number(
     title: '手续费',
     field: 'fee',
     widthIndex: 9,
     format: '#,##0.00',
+    visibleInCompact: false,
   ),
   _TradeColumnConfig.number(
     title: '净盈亏',
@@ -375,5 +403,6 @@ const _tradeColumnConfigs = <_TradeColumnConfig>[
     widthIndex: 13,
     minWidth: 160,
     rendererType: _TradeColumnRendererType.notes,
+    visibleInCompact: false,
   ),
 ];
